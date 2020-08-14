@@ -1,0 +1,1 @@
+# tinymce-collaborative-editing-plugin
