@@ -1,0 +1,1 @@
+{"version":3,"file":"AddTwoTest.js","sourceRoot":"","sources":["../../../../src/test/ts/atomic/AddTwoTest.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,QAAQ,EAAE,MAAM,EAAE,MAAM,uBAAuB,CAAC;AACzD,OAAO,EAAE,MAAM,EAAE,MAAM,8BAA8B,CAAC;AAEtD,wGAAwG;AACxG,QAAQ,CAAC,IAAI,CAAC,mBAAmB,EAAE;IACjC,MAAM,CAAC,EAAE,CAAC,sBAAsB,EAAE,CAAC,EAAE,MAAM,CAAC,CAAC,CAAC,CAAC,CAAC;AAClD,CAAC,CAAC,CAAC"}
