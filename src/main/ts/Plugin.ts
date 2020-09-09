@@ -7,12 +7,12 @@ let user: User;
 
 tinymce.create('tinymce.plugins.Budwriter', {
   Budwriter: (editor: Editor, url: string) => {
-    const collaborativeEditing = new CollaborativeEditing(editor);
+    user = JSON.parse(JSON.stringify(editor.getParam('budwriter')));
+    const collaborativeEditing = new CollaborativeEditing(editor, user);
     editor.on('Load', function (event: Event) {
       const textEditor: HTMLElement = document.querySelector('.tinymce');
       textEditor.parentElement.onresize = (event: Event) => { collaborativeEditing.onResize(event); }
 
-      user = JSON.parse(JSON.stringify(editor.getParam('budwriter')));
       collaborativeEditing.setUser(user);
     });
 

@@ -53,6 +53,12 @@
   "types": "./lib/main/ts/api/Main.d.ts",
   "license": "Apache-2.0",
   "dependencies": {
-    "@types/tinymce": "^4.5.24"
+    "@types/socket.io": "^2.1.11",
+    "@types/socket.io-client": "^1.4.33",
+    "@types/tinymce": "^4.5.24",
+    "i": "^0.3.6",
+    "npm": "^6.14.8",
+    "socket.io": "^2.3.0",
+    "socket.io-client": "^2.3.0"
   }
 }

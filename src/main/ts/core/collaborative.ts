@@ -8,6 +8,12 @@ export class CollaborativeEditing {
   editor: Editor;
 
   /**
+   * Socket IO
+   */
+  io: SocketIOClientStatic;
+  ioClient: SocketIOClient.Socket;
+
+  /**
    * Real time
    */
   myUser: User;
@@ -21,13 +27,23 @@ export class CollaborativeEditing {
     range: Range
   }>;
   colors: Map<string, string>;
+  
 
-  constructor(editor: Editor) {
+  constructor(editor: Editor, user: User) {
     this.editor = editor;
 
     this.cursors = new Map();
     this.selections = new Map();
     this.colors = new Map();
+
+    this.io = require("socket.io-client");
+    this.ioClient = this.io.connect("http://localhost:3000", {
+      query: `name=${user.name}&photoUrl=${user.photoUrl}`
+    });
+
+    this.ioClient.on('register_client', (user: User) => {
+      this.setUser(user);
+    });
   }
 
   /**
@@ -51,7 +67,7 @@ export class CollaborativeEditing {
 
     const container = document.createElement('div');
     container.id = `container-${this.hash(user.name)}`
-    container.style.display = 'flex';
+    container.style.display = 'inline-flex';
     container.style.position = 'relative';
     container.style.cursor = 'pointer';
     container.style.width = '35px';
@@ -104,7 +120,7 @@ export class CollaborativeEditing {
     text.style.pointerEvents = 'none';
     text.style.verticalAlign = 'center';
     text.style.backgroundColor = this.colors.get(user.name);
-    text.style.opacity = '70%';
+    text.style.opacity = '85%';
     text.style.color = 'white';
     text.style.fontSize = '9px';
     text.style.paddingTop = '9px';
@@ -114,6 +130,7 @@ export class CollaborativeEditing {
     text.style.left = '35px';
     text.style.borderRadius = '5px';
     text.style.marginBottom = '10px';
+    text.style.zIndex = '10';
 
     container.appendChild(text);
 
