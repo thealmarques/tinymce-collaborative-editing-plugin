@@ -1,0 +1,10 @@
+.editors {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    justify-content: space-between;
+}
+
+.editor1, .editor2 {
+    width: 48%;
+}

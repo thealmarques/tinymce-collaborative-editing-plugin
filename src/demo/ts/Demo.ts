@@ -5,7 +5,7 @@ declare let tinymce: any;
 Plugin();
 
 tinymce.init({
-  selector: 'textarea.tinymce',
+  selector: 'textarea.tinymce_1',
   plugins: 'code budwriter',
   budwriter: {
     name: 'Andre',
@@ -14,5 +14,17 @@ tinymce.init({
   },
   toolbar: 'budwriter',
   height : "600",
-  branding: false
+  branding: false,
+});
+
+tinymce.init({
+  selector: 'textarea.tinymce_2',
+  plugins: 'code budwriter',
+  budwriter: {
+    name: 'James',
+    key: 'free4all'
+  },
+  toolbar: 'budwriter',
+  height : "600",
+  branding: false,
 });

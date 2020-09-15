@@ -3,25 +3,46 @@ import { CollaborativeEditing } from './core/collaborative';
 import { User } from './interfaces/user.interfaces';
 
 declare const tinymce: any;
-let user: User;
+let collaborativeMap: Map<string, CollaborativeEditing> = new Map();
 
 tinymce.create('tinymce.plugins.Budwriter', {
   Budwriter: (editor: Editor, url: string) => {
-    user = JSON.parse(JSON.stringify(editor.getParam('budwriter')));
-    const collaborativeEditing = new CollaborativeEditing(editor, user);
-    editor.on('Load', function (event: Event) {
-      const textEditor: HTMLElement = document.querySelector('.tinymce');
-      textEditor.parentElement.onresize = (event: Event) => { collaborativeEditing.onResize(event); }
+    editor.on('Load', () => {
+      const textEditor: HTMLElement = document.querySelector(editor.getParam('selector'));
 
-      collaborativeEditing.setUser(user);
+      const userContainer = document.createElement('div');
+      userContainer.id = 'user-container';
+      userContainer.style.display = 'flex';
+      userContainer.style.alignItems = 'center';
+      userContainer.style.marginBottom = '10px';
+      textEditor.parentElement.insertBefore(userContainer, textEditor);
+
+      const user: User = JSON.parse(JSON.stringify(editor.getParam('budwriter')));
+      const edit = new CollaborativeEditing(editor, user);
+      collaborativeMap.set(editor.getParam('selector'), edit);
+      edit.setUser(user);
+      window.onresize = (event: Event) => {
+        edit.onResize(event);
+      }
     });
 
     editor.on('click', (event: Event) => {
-      collaborativeEditing.onListen(event, user);
+      const user: User = JSON.parse(JSON.stringify(editor.getParam('budwriter')));
+      collaborativeMap.get(editor.getParam('selector')).onListen(event, user);
     });
 
     editor.on('keyup', (event: Event) => {
-      collaborativeEditing.onListen(event, user);
+      const user: User = JSON.parse(JSON.stringify(editor.getParam('budwriter')));
+      collaborativeMap.get(editor.getParam('selector')).updateContent(event);
+
+      collaborativeMap.get(editor.getParam('selector')).onListen(event, user);
+    });
+
+    editor.on('NodeChange', (event: Event) => {
+      const colab = collaborativeMap.get(editor.getParam('selector'));
+      if (colab) {
+      colab.updateContent(event);
+      }
     });
   }
 });

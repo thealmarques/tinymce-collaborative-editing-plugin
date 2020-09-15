@@ -17,7 +17,6 @@ export class CollaborativeEditing {
    * Real time
    */
   myUser: User;
-  users: User[];
   cursors: Map<number, {
     range: Range,
     node: HTMLElement
@@ -35,15 +34,115 @@ export class CollaborativeEditing {
     this.cursors = new Map();
     this.selections = new Map();
     this.colors = new Map();
+    this.myUser = user;
 
     this.io = require("socket.io-client");
+
     this.ioClient = this.io.connect("http://localhost:3000", {
       query: `name=${user.name}&photoUrl=${user.photoUrl}`
     });
 
-    this.ioClient.on('register_client', (user: User) => {
-      this.setUser(user);
+    this.ioClient.on('update_clients', (array: []) => {
+      const map = new Map(array);
+      map.forEach((value: User, key: number) => {
+        if (user.name !== value.name) {
+          this.setUser(value);
+        }
+      });
     });
+
+    this.ioClient.on('update_cursor', (obj: string) => {
+      const parsedObj: {
+        range: Range,
+        nodeIndex: number,
+        user: User,
+        content: string
+      } = JSON.parse(obj);
+      if (parsedObj.user.name !== this.myUser.name) {
+        this.deleteUserInteractions(parsedObj.user);
+        const appendRange = new Range();
+        const node: HTMLElement = <HTMLElement>this.editor.getDoc().querySelector('.mce-content-body').children[parsedObj.nodeIndex];
+
+        const textNode: Node = this.findTextNode(node, parsedObj.content);
+        let offset = 0;
+        if (parsedObj.range.endOffset > textNode.textContent.length) {
+          offset++;
+        }
+
+        appendRange.setStart(textNode, parsedObj.range.startOffset - offset);
+        appendRange.setEnd(textNode, parsedObj.range.endOffset - offset);
+
+        this.moveCursor(appendRange, parsedObj.user, node);
+      } 
+    });
+
+    this.ioClient.on('update_selection', (obj: string) => {
+      const parsedObj: {
+        range: Range,
+        startNodeIndex: number,
+        endNodeIndex: number,
+        user: User,
+        startContent: string,
+        endContent: string,
+        scrollTop: number
+      } = JSON.parse(obj);
+      if (parsedObj.user.name !== this.myUser.name) {
+        this.deleteUserInteractions(parsedObj.user);
+        
+        const appendRange = new Range();
+        const startNode: HTMLElement = <HTMLElement>this.editor.getDoc().querySelector('.mce-content-body').children[parsedObj.startNodeIndex];
+        const endNode: HTMLElement = <HTMLElement>this.editor.getDoc().querySelector('.mce-content-body').children[parsedObj.endNodeIndex];
+        const startTextContent = this.findTextNode(startNode, parsedObj.startContent);
+        const endTextContent = this.findTextNode(endNode, parsedObj.endContent);
+
+        let startOffset = 0;
+        if (parsedObj.range.startOffset > startTextContent.textContent.length) {
+          startOffset++;
+        }
+
+        let endOffset = 0;
+        if (parsedObj.range.endOffset > endTextContent.textContent.length) {
+          endOffset++;
+        }
+
+        appendRange.setStart(startTextContent, parsedObj.range.startOffset - startOffset);
+        appendRange.setEnd(endTextContent, parsedObj.range.endOffset - endOffset);
+
+        this.selections.set(this.hash(user.name), {
+          range: appendRange, user: parsedObj.user
+        });
+
+        this.moveSelection(Array.from(appendRange.getClientRects()), parsedObj.user, parsedObj.scrollTop);
+      } 
+    });
+
+    this.ioClient.on('update_content', (content: string) => {
+      if (content !== this.editor.getContent()) {
+        this.editor.setContent(content);
+      }
+    });
+  }
+
+  findTextNode(node: HTMLElement, content: string) {
+    let textNode: Node;
+    if (node.textContent.trim() === content.trim() && node.childNodes.length === 0) {
+      return node;
+    }
+
+    for (let i = 0; i < node.childNodes.length; i++) {
+      const currentNode = node.childNodes[i];
+      if (currentNode.textContent.trim() === content.trim() && currentNode.childNodes.length === 0) {
+        return currentNode;
+      }
+
+      textNode = this.findTextNode(<HTMLElement>currentNode, content);
+
+      if (textNode) {
+        return textNode;
+      }
+    }
+
+    return textNode;
   }
 
   /**
@@ -81,14 +180,13 @@ export class CollaborativeEditing {
       (event.target.children[1] as HTMLElement).style.visibility = 'hidden';
     });
 
-    if (user.photoUrl && user.photoUrl.length > 0) {
+    if (user.photoUrl && user.photoUrl.length > 0 && user.photoUrl !== 'undefined') {
       const avatar = document.createElement('img');
       avatar.id = `avatar-${user.name}`;
       avatar.src = user.photoUrl;
       avatar.style.height = '38px';
       avatar.style.width = '35px';
       avatar.style.borderRadius = '35px';
-      avatar.style.marginBottom = '10px';
       avatar.style.pointerEvents = 'none';
 
       container.appendChild(avatar);
@@ -106,7 +204,6 @@ export class CollaborativeEditing {
       avatar.style.display = 'flex';
       avatar.style.alignItems = 'center';
       avatar.style.justifyContent = 'center';
-      avatar.style.marginBottom = '10px';
       avatar.innerText = user.name.charAt(0);
 
       container.appendChild(avatar);
@@ -129,13 +226,12 @@ export class CollaborativeEditing {
     text.style.textAlign = 'center';
     text.style.left = '35px';
     text.style.borderRadius = '5px';
-    text.style.marginBottom = '10px';
     text.style.zIndex = '10';
 
     container.appendChild(text);
 
-    const textEditor: HTMLElement = document.querySelector('.tinymce');
-    textEditor.parentElement.insertBefore(container, textEditor);
+    const textEditor: HTMLElement = document.querySelector(this.editor.getParam('selector')).parentElement.querySelector('#user-container');
+    textEditor.appendChild(container);
   }
 
   /**
@@ -148,12 +244,61 @@ export class CollaborativeEditing {
     let selection: Selection = this.editor.getDoc().getSelection();
     let range: Range = selection.getRangeAt(0);
 
+    Object.defineProperties(range, {
+      startOffset: {
+          value: range.startOffset,
+          enumerable: true
+      },
+      endOffset: {
+        value: range.endOffset,
+        enumerable: true
+      }
+    });
+
+    let startNode: Node = range.startContainer;
+
+    while (startNode.parentElement.id !== 'tinymce') {
+      startNode = startNode.parentElement;
+    }
+
+    let sibling: Node = startNode.previousSibling;
+    let startIndex = 0;
+    while (sibling !== null) {
+      startIndex++;
+      sibling = sibling.previousSibling;
+    }
+
+    let endNode: Node = range.endContainer;
+    while (endNode.parentElement.id !== 'tinymce') {
+      endNode = endNode.parentElement;
+    }
+    
+    let endIndex = 0;
+    sibling = endNode.previousSibling;
+    while (sibling !== null) {
+      endIndex++;
+      sibling = sibling.previousSibling;
+    };
+
     this.deleteUserInteractions(user);
 
     if (range.startOffset === range.endOffset) {
-      this.moveCursor(event, range, user);
+      this.ioClient.emit('change_cursor', JSON.stringify({
+        range: range,
+        user,
+        nodeIndex: startIndex,
+        content: range.startContainer.textContent
+      }));
     } else {
-      this.moveSelection(event, range, user);
+      this.ioClient.emit('change_selection', JSON.stringify({
+        range: range,
+        startNodeIndex: startIndex,
+        endNodeIndex: endIndex,
+        user,
+        startContent: range.startContainer.textContent,
+        endContent: range.endContainer.textContent,
+        scrollTop: this.editor.getBody().parentElement.scrollTop
+      }));
     }
   }
 
@@ -177,13 +322,12 @@ export class CollaborativeEditing {
 
   /**
    * Moves cursor to desired position
-   * @param event Event
    * @param range Range selection
    * @param user User
    */
-  private moveCursor(event: Event, range: Range, user: User): void {
-    let node: HTMLElement = <HTMLElement>this.editor.selection.getNode();
+  private moveCursor(range: Range, user: User, node: HTMLElement): void {
     const userId = this.hash(user.name);
+    const bounding = range.getBoundingClientRect();
 
     const cursorId = `cursor-${userId}`;
     let cursor: HTMLDivElement = document.createElement('div');
@@ -196,7 +340,7 @@ export class CollaborativeEditing {
     cursorBar.style.backgroundColor = this.colors.get(user.name);
     cursorBar.style.opacity = '60%';
     cursorBar.style.width = '2.5px';
-    cursorBar.style.height = range.getBoundingClientRect().height + 'px';
+    cursorBar.style.height = bounding.height ? bounding.height + 'px' : '1em';
     cursorBar.style.position = 'relative';
 
     const cursorText: HTMLSpanElement = document.createElement('span')
@@ -211,18 +355,18 @@ export class CollaborativeEditing {
     cursorBar.appendChild(cursorText);
     cursor.appendChild(cursorBar);
 
-    if (range.getBoundingClientRect().top === 0) {
+    if (bounding.top === 0) {
       cursor.style.top = node.offsetTop + 'px';
       cursor.style.left = '1em';
     } else {
-      cursor.style.top = this.editor.getDoc().children[0].scrollTop + range.getBoundingClientRect().top + 'px';
-      cursor.style.left = range.getBoundingClientRect().left + 'px';
+      cursor.style.top = this.editor.getDoc().children[0].scrollTop + bounding.top + 'px';
+      cursor.style.left = bounding.left + 'px';
     }
 
     const body: HTMLElement = this.editor.getDoc().body;
     body.parentElement.insertBefore(cursor, body);
 
-    this.cursors.set(userId, { range: range.cloneRange(), node });
+    this.cursors.set(userId, { range, node });
     this.selections.delete(userId);
   }
 
@@ -232,11 +376,9 @@ export class CollaborativeEditing {
    * @param range Range selection
    * @param user User
    */
-  private moveSelection(event: Event, range: Range, user: User): void {
+  private moveSelection(ranges: DOMRect[], user: User, scrollTop: number): void {
     const body: HTMLElement = this.editor.getDoc().body;
-
     const selectionId = `selection-${this.hash(user.name)}`;
-    const ranges = range.getClientRects();
 
     for (let i = 0; i < ranges.length; i++) {
       const selection = document.createElement('span');
@@ -246,7 +388,7 @@ export class CollaborativeEditing {
       selection.style.position = 'absolute';
       selection.style.width = ranges[i].width + 'px';
       selection.style.height = ranges[i].height + 'px';
-      selection.style.top = ranges[i].y + 'px';
+      selection.style.top = ranges[i].y + this.editor.getBody().parentElement.scrollTop + 'px';
       selection.style.left = ranges[i].x + 'px';
       selection.style.zIndex = '-1';
 
@@ -266,9 +408,6 @@ export class CollaborativeEditing {
       body.parentElement.insertBefore(selection, body);
     }
 
-    this.selections.set(this.hash(user.name), {
-      range, user
-    });
     this.cursors.delete(this.hash(user.name));
   }
 
@@ -279,18 +418,19 @@ export class CollaborativeEditing {
   onResize(event: Event): void {
     this.cursors.forEach(({ range, node }, key) => {
       const element: HTMLDivElement = this.editor.getDoc().querySelector(`#cursor-${key}`);
-      if (range.getBoundingClientRect().top === 0) {
+      const bounding = range.getBoundingClientRect();
+      if (bounding.top === 0) {
         element.style.top = node.offsetTop + 'px';
         element.style.left = '1em';
       } else {
-        element.style.top = this.editor.getDoc().children[0].scrollTop + range.getBoundingClientRect().top + 'px';
-        element.style.left = range.getBoundingClientRect().left + 'px';
+        element.style.top = this.editor.getDoc().children[0].scrollTop + bounding.top + 'px';
+        element.style.left = bounding.left + 'px';
       }
     });
 
     this.selections.forEach(({ range, user }, key: number) => {
       this.deleteUserInteractions(user);
-      this.moveSelection(null, range, user);
+      this.moveSelection(Array.from(range.getClientRects()), user, 0);
     });
   }
 
@@ -321,5 +461,9 @@ export class CollaborativeEditing {
       color += letters[Math.floor(Math.random() * 16)];
     }
     return color;
+  }
+
+  updateContent(event: Event) {
+    this.ioClient.emit('set_content', this.editor.getContent());
   }
 }
