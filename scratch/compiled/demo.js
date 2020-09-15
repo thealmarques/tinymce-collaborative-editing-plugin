@@ -10588,6 +10588,9 @@ var CollaborativeEditing = /** @class */ (function () {
                 }
             });
         });
+        this.ioClient.on('delete_client', function (user) {
+            _this.removeUser(user);
+        });
         this.ioClient.on('update_cursor', function (obj) {
             var parsedObj = JSON.parse(obj);
             if (parsedObj.user.name !== _this.myUser.name) {
@@ -10626,7 +10629,7 @@ var CollaborativeEditing = /** @class */ (function () {
                 _this.selections.set(_this.hash(user.name), {
                     range: appendRange, user: parsedObj.user
                 });
-                _this.moveSelection(Array.from(appendRange.getClientRects()), parsedObj.user, parsedObj.scrollTop);
+                _this.moveSelection(Array.from(appendRange.getClientRects()), parsedObj.user);
             }
         });
         this.ioClient.on('update_content', function (content) {
@@ -10635,6 +10638,11 @@ var CollaborativeEditing = /** @class */ (function () {
             }
         });
     }
+    /**
+     * Finds the desired node in the editor where the content equals the given parameter.
+     * @param node Search node
+     * @param content Content of the node
+     */
     CollaborativeEditing.prototype.findTextNode = function (node, content) {
         var textNode;
         if (node.textContent.trim() === content.trim() && node.childNodes.length === 0) {
@@ -10651,6 +10659,14 @@ var CollaborativeEditing = /** @class */ (function () {
             }
         }
         return textNode;
+    };
+    /**
+     * Removes user from TinyMCE Editor
+     */
+    CollaborativeEditing.prototype.removeUser = function (user) {
+        this.deleteUserInteractions(user);
+        var userContainer = document.querySelector(this.editor.getParam('selector')).parentElement.querySelector('#user-container');
+        userContainer.querySelector("#container-" + this.hash(user.name)).remove();
     };
     /**
      * Sets a user in the tinymce editor
@@ -10735,8 +10751,8 @@ var CollaborativeEditing = /** @class */ (function () {
         text.style.borderRadius = '5px';
         text.style.zIndex = '10';
         container.appendChild(text);
-        var textEditor = document.querySelector(this.editor.getParam('selector')).parentElement.querySelector('#user-container');
-        textEditor.appendChild(container);
+        var userContainer = document.querySelector(this.editor.getParam('selector')).parentElement.querySelector('#user-container');
+        userContainer.appendChild(container);
     };
     /**
      * Listens all kinds of input in editor
@@ -10780,7 +10796,7 @@ var CollaborativeEditing = /** @class */ (function () {
         ;
         this.deleteUserInteractions(user);
         if (range.startOffset === range.endOffset) {
-            this.ioClient.emit('change_cursor', JSON.stringify({
+            this.ioClient.emit('set_cursor', JSON.stringify({
                 range: range,
                 user: user,
                 nodeIndex: startIndex,
@@ -10788,14 +10804,13 @@ var CollaborativeEditing = /** @class */ (function () {
             }));
         }
         else {
-            this.ioClient.emit('change_selection', JSON.stringify({
+            this.ioClient.emit('set_selection', JSON.stringify({
                 range: range,
                 startNodeIndex: startIndex,
                 endNodeIndex: endIndex,
                 user: user,
                 startContent: range.startContainer.textContent,
-                endContent: range.endContainer.textContent,
-                scrollTop: this.editor.getBody().parentElement.scrollTop
+                endContent: range.endContainer.textContent
             }));
         }
     };
@@ -10864,7 +10879,7 @@ var CollaborativeEditing = /** @class */ (function () {
      * @param range Range selection
      * @param user User
      */
-    CollaborativeEditing.prototype.moveSelection = function (ranges, user, scrollTop) {
+    CollaborativeEditing.prototype.moveSelection = function (ranges, user) {
         var body = this.editor.getDoc().body;
         var selectionId = "selection-" + this.hash(user.name);
         for (var i = 0; i < ranges.length; i++) {
@@ -10915,7 +10930,7 @@ var CollaborativeEditing = /** @class */ (function () {
         this.selections.forEach(function (_a, key) {
             var range = _a.range, user = _a.user;
             _this.deleteUserInteractions(user);
-            _this.moveSelection(Array.from(range.getClientRects()), user, 0);
+            _this.moveSelection(Array.from(range.getClientRects()), user);
         });
     };
     /**
@@ -10945,6 +10960,10 @@ var CollaborativeEditing = /** @class */ (function () {
         }
         return color;
     };
+    /**
+     * Text editor content change event
+     * @param event Default TinyMCE Event
+     */
     CollaborativeEditing.prototype.updateContent = function (event) {
         this.ioClient.emit('set_content', this.editor.getContent());
     };

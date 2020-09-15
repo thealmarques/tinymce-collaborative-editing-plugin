@@ -1,4 +1,6 @@
 import { Editor } from 'tinymce';
+import { SocketCursor } from '../interfaces/cursor.interfaces';
+import { SocketSelection } from '../interfaces/selection.interfaces';
 import { User } from '../interfaces/user.interfaces';
 
 export class CollaborativeEditing {
@@ -51,13 +53,12 @@ export class CollaborativeEditing {
       });
     });
 
+    this.ioClient.on('delete_client', (user: User) => {
+      this.removeUser(user);
+    });
+
     this.ioClient.on('update_cursor', (obj: string) => {
-      const parsedObj: {
-        range: Range,
-        nodeIndex: number,
-        user: User,
-        content: string
-      } = JSON.parse(obj);
+      const parsedObj: SocketCursor = JSON.parse(obj);
       if (parsedObj.user.name !== this.myUser.name) {
         this.deleteUserInteractions(parsedObj.user);
         const appendRange = new Range();
@@ -77,15 +78,7 @@ export class CollaborativeEditing {
     });
 
     this.ioClient.on('update_selection', (obj: string) => {
-      const parsedObj: {
-        range: Range,
-        startNodeIndex: number,
-        endNodeIndex: number,
-        user: User,
-        startContent: string,
-        endContent: string,
-        scrollTop: number
-      } = JSON.parse(obj);
+      const parsedObj: SocketSelection = JSON.parse(obj);
       if (parsedObj.user.name !== this.myUser.name) {
         this.deleteUserInteractions(parsedObj.user);
         
@@ -112,7 +105,7 @@ export class CollaborativeEditing {
           range: appendRange, user: parsedObj.user
         });
 
-        this.moveSelection(Array.from(appendRange.getClientRects()), parsedObj.user, parsedObj.scrollTop);
+        this.moveSelection(Array.from(appendRange.getClientRects()), parsedObj.user);
       } 
     });
 
@@ -123,6 +116,11 @@ export class CollaborativeEditing {
     });
   }
 
+  /**
+   * Finds the desired node in the editor where the content equals the given parameter.
+   * @param node Search node
+   * @param content Content of the node
+   */
   findTextNode(node: HTMLElement, content: string) {
     let textNode: Node;
     if (node.textContent.trim() === content.trim() && node.childNodes.length === 0) {
@@ -143,6 +141,15 @@ export class CollaborativeEditing {
     }
 
     return textNode;
+  }
+
+  /**
+   * Removes user from TinyMCE Editor
+   */
+  removeUser(user: User) {
+    this.deleteUserInteractions(user);
+    const userContainer: HTMLElement = document.querySelector(this.editor.getParam('selector')).parentElement.querySelector('#user-container');
+    userContainer.querySelector(`#container-${this.hash(user.name)}`).remove();
   }
 
   /**
@@ -230,8 +237,8 @@ export class CollaborativeEditing {
 
     container.appendChild(text);
 
-    const textEditor: HTMLElement = document.querySelector(this.editor.getParam('selector')).parentElement.querySelector('#user-container');
-    textEditor.appendChild(container);
+    const userContainer: HTMLElement = document.querySelector(this.editor.getParam('selector')).parentElement.querySelector('#user-container');
+    userContainer.appendChild(container);
   }
 
   /**
@@ -283,21 +290,20 @@ export class CollaborativeEditing {
     this.deleteUserInteractions(user);
 
     if (range.startOffset === range.endOffset) {
-      this.ioClient.emit('change_cursor', JSON.stringify({
+      this.ioClient.emit('set_cursor', JSON.stringify({
         range: range,
         user,
         nodeIndex: startIndex,
         content: range.startContainer.textContent
       }));
     } else {
-      this.ioClient.emit('change_selection', JSON.stringify({
+      this.ioClient.emit('set_selection', JSON.stringify({
         range: range,
         startNodeIndex: startIndex,
         endNodeIndex: endIndex,
         user,
         startContent: range.startContainer.textContent,
-        endContent: range.endContainer.textContent,
-        scrollTop: this.editor.getBody().parentElement.scrollTop
+        endContent: range.endContainer.textContent
       }));
     }
   }
@@ -376,7 +382,7 @@ export class CollaborativeEditing {
    * @param range Range selection
    * @param user User
    */
-  private moveSelection(ranges: DOMRect[], user: User, scrollTop: number): void {
+  private moveSelection(ranges: DOMRect[], user: User): void {
     const body: HTMLElement = this.editor.getDoc().body;
     const selectionId = `selection-${this.hash(user.name)}`;
 
@@ -430,7 +436,7 @@ export class CollaborativeEditing {
 
     this.selections.forEach(({ range, user }, key: number) => {
       this.deleteUserInteractions(user);
-      this.moveSelection(Array.from(range.getClientRects()), user, 0);
+      this.moveSelection(Array.from(range.getClientRects()), user);
     });
   }
 
@@ -463,6 +469,10 @@ export class CollaborativeEditing {
     return color;
   }
 
+  /**
+   * Text editor content change event
+   * @param event Default TinyMCE Event
+   */
   updateContent(event: Event) {
     this.ioClient.emit('set_content', this.editor.getContent());
   }
