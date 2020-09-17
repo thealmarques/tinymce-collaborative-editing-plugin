@@ -10487,7 +10487,7 @@ tinymce.init({
         socketUrl: 'ws://budwriter-server.herokuapp.com'
     },
     toolbar: 'budwriter',
-    height: "600",
+    height: '600',
     branding: false,
 });
 tinymce.init({
@@ -10499,7 +10499,7 @@ tinymce.init({
         socketUrl: 'ws://budwriter-server.herokuapp.com'
     },
     toolbar: 'budwriter',
-    height: "600",
+    height: '600',
     branding: false,
 });
 
@@ -10540,15 +10540,20 @@ tinymce.create('tinymce.plugins.Budwriter', {
             var user = JSON.parse(JSON.stringify(editor.getParam('budwriter')));
             collaborativeMap.get(editor.getParam('selector')).onListen(event, user);
         });
-        editor.on('keyup', function (event) {
-            var user = JSON.parse(JSON.stringify(editor.getParam('budwriter')));
-            collaborativeMap.get(editor.getParam('selector')).updateContent(event);
-            collaborativeMap.get(editor.getParam('selector')).onListen(event, user);
-        });
         editor.on('NodeChange', function (event) {
             var colab = collaborativeMap.get(editor.getParam('selector'));
+            var user = JSON.parse(JSON.stringify(editor.getParam('budwriter')));
             if (colab) {
                 colab.updateContent(event);
+                colab.onListen(event, user);
+            }
+        });
+        editor.on('input', function (event) {
+            var colab = collaborativeMap.get(editor.getParam('selector'));
+            var user = JSON.parse(JSON.stringify(editor.getParam('budwriter')));
+            if (colab) {
+                colab.updateContent(event);
+                colab.onListen(event, user);
             }
         });
     }
@@ -10590,8 +10595,8 @@ var CollaborativeEditing = /** @class */ (function () {
                 }
             });
         });
-        this.ioClient.on('delete_client', function (user) {
-            _this.removeUser(user);
+        this.ioClient.on('delete_client', function (disconnected) {
+            _this.removeUser(disconnected);
         });
         this.ioClient.on('update_cursor', function (obj) {
             var parsedObj = JSON.parse(obj);
@@ -10618,6 +10623,9 @@ var CollaborativeEditing = /** @class */ (function () {
                 var endNode = _this.editor.getDoc().querySelector('.mce-content-body').children[parsedObj.endNodeIndex];
                 var startTextContent = _this.findTextNode(startNode, parsedObj.startContent);
                 var endTextContent = _this.findTextNode(endNode, parsedObj.endContent);
+                if (!endTextContent) {
+                    endTextContent = startTextContent;
+                }
                 var startOffset = 0;
                 if (parsedObj.range.startOffset > startTextContent.textContent.length) {
                     startOffset++;
@@ -10634,42 +10642,47 @@ var CollaborativeEditing = /** @class */ (function () {
                 _this.moveSelection(Array.from(appendRange.getClientRects()), parsedObj.user);
             }
         });
-        this.ioClient.on('update_content', function (content) {
-            if (content !== _this.editor.getContent()) {
-                _this.editor.setContent(content);
-                _this.onResize();
+        this.ioClient.on('update_content', function (message) {
+            if (message.username !== _this.myUser.name) {
+                _this.editor.setContent(message.content);
             }
         });
     }
     /**
-     * Finds the desired node in the editor where the content equals the given parameter.
-     * @param node Search node
-     * @param content Content of the node
+     * On Resize Event
+     * @param event Event
      */
-    CollaborativeEditing.prototype.findTextNode = function (node, content) {
-        var textNode;
-        if (node.textContent.trim() === content.trim() && node.childNodes.length === 0) {
-            return node;
-        }
-        for (var i = 0; i < node.childNodes.length; i++) {
-            var currentNode = node.childNodes[i];
-            if (currentNode.textContent.trim() === content.trim() && currentNode.childNodes.length === 0) {
-                return currentNode;
+    CollaborativeEditing.prototype.onResize = function () {
+        var _this = this;
+        this.cursors.forEach(function (_a, key) {
+            var range = _a.range, node = _a.node;
+            var element = _this.editor.getDoc().querySelector("#cursor-" + key);
+            var bounding = range.getBoundingClientRect();
+            if (bounding.top === 0) {
+                element.style.top = node.offsetTop + 'px';
+                element.style.left = '1em';
             }
-            textNode = this.findTextNode(currentNode, content);
-            if (textNode) {
-                return textNode;
+            else {
+                element.style.top = _this.editor.getDoc().children[0].scrollTop + bounding.top + 'px';
+                element.style.left = bounding.left + 'px';
             }
-        }
-        return textNode;
+        });
+        this.selections.forEach(function (_a, key) {
+            var range = _a.range, user = _a.user;
+            _this.deleteUserInteractions(user);
+            _this.moveSelection(Array.from(range.getClientRects()), user);
+        });
     };
     /**
-     * Removes user from TinyMCE Editor
+     * Text editor content change event
+     * @param event Default TinyMCE Event
      */
-    CollaborativeEditing.prototype.removeUser = function (user) {
-        this.deleteUserInteractions(user);
-        var userContainer = document.querySelector(this.editor.getParam('selector')).parentElement.querySelector('#user-container');
-        userContainer.querySelector("#container-" + this.hash(user.name)).remove();
+    CollaborativeEditing.prototype.updateContent = function (event) {
+        this.ioClient.emit('set_content', {
+            username: this.myUser.name,
+            content: this.editor.getContent()
+        });
+        this.onResize();
     };
     /**
      * Sets a user in the tinymce editor
@@ -10702,10 +10715,10 @@ var CollaborativeEditing = /** @class */ (function () {
         container.style.cursor = 'pointer';
         container.style.width = '35px';
         container.style.alignItems = 'center';
-        container.addEventListener("mouseover", function (event) {
+        container.addEventListener('mouseover', function (event) {
             event.target.children[1].style.visibility = 'visible';
         });
-        container.addEventListener("mouseout", function (event) {
+        container.addEventListener('mouseout', function (event) {
             event.target.children[1].style.visibility = 'hidden';
         });
         if (user.photoUrl && user.photoUrl.length > 0 && user.photoUrl !== 'undefined') {
@@ -10796,7 +10809,6 @@ var CollaborativeEditing = /** @class */ (function () {
             endIndex++;
             sibling = sibling.previousSibling;
         }
-        ;
         this.deleteUserInteractions(user);
         if (range.startOffset === range.endOffset) {
             this.ioClient.emit('set_cursor', JSON.stringify({
@@ -10816,6 +10828,36 @@ var CollaborativeEditing = /** @class */ (function () {
                 endContent: range.endContainer.textContent
             }));
         }
+    };
+    /**
+     * Finds the desired node in the editor where the content equals the given parameter.
+     * @param node Search node
+     * @param content Content of the node
+     */
+    CollaborativeEditing.prototype.findTextNode = function (node, content) {
+        var textNode;
+        if (node.textContent.trim().indexOf(content.trim()) > -1 && node.childNodes.length === 0) {
+            return node;
+        }
+        for (var _i = 0, _a = Array.from(node.childNodes); _i < _a.length; _i++) {
+            var currentNode = _a[_i];
+            if (currentNode.textContent.trim().indexOf(content.trim()) > -1 && currentNode.childNodes.length === 0) {
+                return currentNode;
+            }
+            textNode = this.findTextNode(currentNode, content);
+            if (textNode) {
+                return textNode;
+            }
+        }
+        return textNode;
+    };
+    /**
+     * Removes user from TinyMCE Editor
+     */
+    CollaborativeEditing.prototype.removeUser = function (user) {
+        this.deleteUserInteractions(user);
+        var userContainer = document.querySelector(this.editor.getParam('selector')).parentElement.querySelector('#user-container');
+        userContainer.querySelector("#container-" + this.hash(user.name)).remove();
     };
     /**
      * Removes user cursor or selections
@@ -10912,43 +10954,20 @@ var CollaborativeEditing = /** @class */ (function () {
         this.cursors.delete(this.hash(user.name));
     };
     /**
-     * On Resize Event
-     * @param event Event
-     */
-    CollaborativeEditing.prototype.onResize = function () {
-        var _this = this;
-        this.cursors.forEach(function (_a, key) {
-            var range = _a.range, node = _a.node;
-            var element = _this.editor.getDoc().querySelector("#cursor-" + key);
-            var bounding = range.getBoundingClientRect();
-            if (bounding.top === 0) {
-                element.style.top = node.offsetTop + 'px';
-                element.style.left = '1em';
-            }
-            else {
-                element.style.top = _this.editor.getDoc().children[0].scrollTop + bounding.top + 'px';
-                element.style.left = bounding.left + 'px';
-            }
-        });
-        this.selections.forEach(function (_a, key) {
-            var range = _a.range, user = _a.user;
-            _this.deleteUserInteractions(user);
-            _this.moveSelection(Array.from(range.getClientRects()), user);
-        });
-    };
-    /**
      * Basic hash function
      * @param username User name
      */
     CollaborativeEditing.prototype.hash = function (username) {
         var hash = 0;
-        if (username.length == 0) {
+        if (username.length === 0) {
             return hash;
         }
         for (var i = 0; i < username.length; i++) {
             var char = username.charCodeAt(i);
+            /* tslint:disable:no-bitwise */
             hash = ((hash << 5) - hash) + char;
             hash = hash & hash;
+            /* tslint:enable:no-bitwise */
         }
         return hash;
     };
@@ -10962,13 +10981,6 @@ var CollaborativeEditing = /** @class */ (function () {
             color += letters[Math.floor(Math.random() * 16)];
         }
         return color;
-    };
-    /**
-     * Text editor content change event
-     * @param event Default TinyMCE Event
-     */
-    CollaborativeEditing.prototype.updateContent = function (event) {
-        this.ioClient.emit('set_content', this.editor.getContent());
     };
     return CollaborativeEditing;
 }());

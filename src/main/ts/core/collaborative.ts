@@ -7,28 +7,27 @@ export class CollaborativeEditing {
   /**
    * TinyMCE default editor
    */
-  editor: Editor;
+  private editor: Editor;
 
   /**
    * Socket IO
    */
-  io: SocketIOClientStatic;
-  ioClient: SocketIOClient.Socket;
+  private io: SocketIOClientStatic;
+  private ioClient: SocketIOClient.Socket;
 
   /**
    * Real time
    */
-  myUser: User;
-  cursors: Map<number, {
+  private myUser: User;
+  private cursors: Map<number, {
     range: Range,
     node: HTMLElement
   }>;
-  selections: Map<number, {
+  private selections: Map<number, {
     user: User,
     range: Range
   }>;
-  colors: Map<string, string>;
-  
+  private colors: Map<string, string>;
 
   constructor(editor: Editor, user: User) {
     this.editor = editor;
@@ -38,7 +37,7 @@ export class CollaborativeEditing {
     this.colors = new Map();
     this.myUser = user;
 
-    this.io = require("socket.io-client");
+    this.io = require('socket.io-client');
 
     this.ioClient = this.io.connect(user.socketUrl, {
       query: `name=${user.name}&photoUrl=${user.photoUrl}`
@@ -53,8 +52,8 @@ export class CollaborativeEditing {
       });
     });
 
-    this.ioClient.on('delete_client', (user: User) => {
-      this.removeUser(user);
+    this.ioClient.on('delete_client', (disconnected: User) => {
+      this.removeUser(disconnected);
     });
 
     this.ioClient.on('update_cursor', (obj: string) => {
@@ -62,9 +61,9 @@ export class CollaborativeEditing {
       if (parsedObj.user.name !== this.myUser.name) {
         this.deleteUserInteractions(parsedObj.user);
         const appendRange = new Range();
-        const node: HTMLElement = <HTMLElement>this.editor.getDoc().querySelector('.mce-content-body').children[parsedObj.nodeIndex];
-
+        const node: HTMLElement = <HTMLElement> this.editor.getDoc().querySelector('.mce-content-body').children[parsedObj.nodeIndex];
         const textNode: Node = this.findTextNode(node, parsedObj.content);
+
         let offset = 0;
         if (parsedObj.range.endOffset > textNode.textContent.length) {
           offset++;
@@ -74,19 +73,23 @@ export class CollaborativeEditing {
         appendRange.setEnd(textNode, parsedObj.range.endOffset - offset);
 
         this.moveCursor(appendRange, parsedObj.user, node);
-      } 
+      }
     });
 
     this.ioClient.on('update_selection', (obj: string) => {
       const parsedObj: SocketSelection = JSON.parse(obj);
       if (parsedObj.user.name !== this.myUser.name) {
         this.deleteUserInteractions(parsedObj.user);
-        
+
         const appendRange = new Range();
-        const startNode: HTMLElement = <HTMLElement>this.editor.getDoc().querySelector('.mce-content-body').children[parsedObj.startNodeIndex];
-        const endNode: HTMLElement = <HTMLElement>this.editor.getDoc().querySelector('.mce-content-body').children[parsedObj.endNodeIndex];
+        const startNode: HTMLElement = <HTMLElement> this.editor.getDoc().querySelector('.mce-content-body').children[parsedObj.startNodeIndex];
+        const endNode: HTMLElement = <HTMLElement> this.editor.getDoc().querySelector('.mce-content-body').children[parsedObj.endNodeIndex];
         const startTextContent = this.findTextNode(startNode, parsedObj.startContent);
-        const endTextContent = this.findTextNode(endNode, parsedObj.endContent);
+        let endTextContent = this.findTextNode(endNode, parsedObj.endContent);
+
+        if (!endTextContent) {
+          endTextContent = startTextContent;
+        }
 
         let startOffset = 0;
         if (parsedObj.range.startOffset > startTextContent.textContent.length) {
@@ -106,57 +109,58 @@ export class CollaborativeEditing {
         });
 
         this.moveSelection(Array.from(appendRange.getClientRects()), parsedObj.user);
-      } 
+      }
     });
 
-    this.ioClient.on('update_content', (content: string) => {
-      if (content !== this.editor.getContent()) {
-        this.editor.setContent(content);
-        this.onResize();
+    this.ioClient.on('update_content', (message: {
+      content: string;
+      username: string;
+    }) => {
+      if (message.username !== this.myUser.name) {
+        this.editor.setContent(message.content);
       }
     });
   }
 
   /**
-   * Finds the desired node in the editor where the content equals the given parameter.
-   * @param node Search node
-   * @param content Content of the node
+   * On Resize Event
+   * @param event Event
    */
-  findTextNode(node: HTMLElement, content: string) {
-    let textNode: Node;
-    if (node.textContent.trim() === content.trim() && node.childNodes.length === 0) {
-      return node;
-    }
-
-    for (let i = 0; i < node.childNodes.length; i++) {
-      const currentNode = node.childNodes[i];
-      if (currentNode.textContent.trim() === content.trim() && currentNode.childNodes.length === 0) {
-        return currentNode;
+  public onResize(): void {
+    this.cursors.forEach(({ range, node }, key) => {
+      const element: HTMLDivElement = this.editor.getDoc().querySelector(`#cursor-${key}`);
+      const bounding = range.getBoundingClientRect();
+      if (bounding.top === 0) {
+        element.style.top = node.offsetTop + 'px';
+        element.style.left = '1em';
+      } else {
+        element.style.top = this.editor.getDoc().children[0].scrollTop + bounding.top + 'px';
+        element.style.left = bounding.left + 'px';
       }
+    });
 
-      textNode = this.findTextNode(<HTMLElement>currentNode, content);
-
-      if (textNode) {
-        return textNode;
-      }
-    }
-
-    return textNode;
+    this.selections.forEach(({ range, user }, key: number) => {
+      this.deleteUserInteractions(user);
+      this.moveSelection(Array.from(range.getClientRects()), user);
+    });
   }
 
   /**
-   * Removes user from TinyMCE Editor
+   * Text editor content change event
+   * @param event Default TinyMCE Event
    */
-  removeUser(user: User) {
-    this.deleteUserInteractions(user);
-    const userContainer: HTMLElement = document.querySelector(this.editor.getParam('selector')).parentElement.querySelector('#user-container');
-    userContainer.querySelector(`#container-${this.hash(user.name)}`).remove();
+  public updateContent(event: Event) {
+    this.ioClient.emit('set_content', {
+      username: this.myUser.name,
+      content: this.editor.getContent()
+    });
+    this.onResize();
   }
 
   /**
    * Sets a user in the tinymce editor
    */
-  setUser(user: User) {
+  public setUser(user: User) {
     const exists = true;
     while (exists) {
       const randomColor = this.getRandomColor();
@@ -173,18 +177,18 @@ export class CollaborativeEditing {
     }
 
     const container = document.createElement('div');
-    container.id = `container-${this.hash(user.name)}`
+    container.id = `container-${this.hash(user.name)}`;
     container.style.display = 'inline-flex';
     container.style.position = 'relative';
     container.style.cursor = 'pointer';
     container.style.width = '35px';
     container.style.alignItems = 'center';
 
-    container.addEventListener("mouseover", (event: Event & { target: HTMLElement }) => {
+    container.addEventListener('mouseover', (event: Event & { target: HTMLElement }) => {
       (event.target.children[1] as HTMLElement).style.visibility = 'visible';
     });
 
-    container.addEventListener("mouseout", (event: Event & { target: HTMLElement }) => {
+    container.addEventListener('mouseout', (event: Event & { target: HTMLElement }) => {
       (event.target.children[1] as HTMLElement).style.visibility = 'hidden';
     });
 
@@ -248,14 +252,14 @@ export class CollaborativeEditing {
    * 2. Copy paste
    * 3. Up/Down
    */
-  onListen(event: Event, user: User): void {
-    let selection: Selection = this.editor.getDoc().getSelection();
-    let range: Range = selection.getRangeAt(0);
+  public onListen(event: Event, user: User): void {
+    const selection: Selection = this.editor.getDoc().getSelection();
+    const range: Range = selection.getRangeAt(0);
 
     Object.defineProperties(range, {
       startOffset: {
-          value: range.startOffset,
-          enumerable: true
+        value: range.startOffset,
+        enumerable: true
       },
       endOffset: {
         value: range.endOffset,
@@ -280,26 +284,26 @@ export class CollaborativeEditing {
     while (endNode.parentElement.id !== 'tinymce') {
       endNode = endNode.parentElement;
     }
-    
+
     let endIndex = 0;
     sibling = endNode.previousSibling;
     while (sibling !== null) {
       endIndex++;
       sibling = sibling.previousSibling;
-    };
+    }
 
     this.deleteUserInteractions(user);
 
     if (range.startOffset === range.endOffset) {
       this.ioClient.emit('set_cursor', JSON.stringify({
-        range: range,
+        range,
         user,
         nodeIndex: startIndex,
         content: range.startContainer.textContent
       }));
     } else {
       this.ioClient.emit('set_selection', JSON.stringify({
-        range: range,
+        range,
         startNodeIndex: startIndex,
         endNodeIndex: endIndex,
         user,
@@ -307,6 +311,40 @@ export class CollaborativeEditing {
         endContent: range.endContainer.textContent
       }));
     }
+  }
+
+  /**
+   * Finds the desired node in the editor where the content equals the given parameter.
+   * @param node Search node
+   * @param content Content of the node
+   */
+  private findTextNode(node: HTMLElement, content: string) {
+    let textNode: Node;
+    if (node.textContent.trim().indexOf(content.trim()) > -1 && node.childNodes.length === 0) {
+      return node;
+    }
+
+    for (const currentNode of Array.from(node.childNodes)) {
+      if (currentNode.textContent.trim().indexOf(content.trim()) > -1 && currentNode.childNodes.length === 0) {
+        return currentNode;
+      }
+
+      textNode = this.findTextNode(<HTMLElement> currentNode, content);
+      if (textNode) {
+        return textNode;
+      }
+    }
+
+    return textNode;
+  }
+
+  /**
+   * Removes user from TinyMCE Editor
+   */
+  private removeUser(user: User) {
+    this.deleteUserInteractions(user);
+    const userContainer: HTMLElement = document.querySelector(this.editor.getParam('selector')).parentElement.querySelector('#user-container');
+    userContainer.querySelector(`#container-${this.hash(user.name)}`).remove();
   }
 
   /**
@@ -337,20 +375,20 @@ export class CollaborativeEditing {
     const bounding = range.getBoundingClientRect();
 
     const cursorId = `cursor-${userId}`;
-    let cursor: HTMLDivElement = document.createElement('div');
+    const cursor: HTMLDivElement = document.createElement('div');
     cursor.id = cursorId;
     cursor.style.position = 'absolute';
     cursor.style.zIndex = '-1';
     cursor.style.position = 'block';
 
-    const cursorBar: HTMLDivElement = document.createElement('div')
+    const cursorBar: HTMLDivElement = document.createElement('div');
     cursorBar.style.backgroundColor = this.colors.get(user.name);
     cursorBar.style.opacity = '60%';
     cursorBar.style.width = '2.5px';
     cursorBar.style.height = bounding.height ? bounding.height + 'px' : '1em';
     cursorBar.style.position = 'relative';
 
-    const cursorText: HTMLSpanElement = document.createElement('span')
+    const cursorText: HTMLSpanElement = document.createElement('span');
     cursorText.style.backgroundColor = this.colors.get(user.name);
     cursorText.style.color = 'white';
     cursorText.style.fontSize = '10px';
@@ -400,7 +438,7 @@ export class CollaborativeEditing {
       selection.style.zIndex = '-1';
 
       if (i === 0) {
-        const selectionText: HTMLSpanElement = document.createElement('span')
+        const selectionText: HTMLSpanElement = document.createElement('span');
         selectionText.style.backgroundColor = this.colors.get(user.name);
         selectionText.style.color = 'white';
         selectionText.style.fontSize = '10px';
@@ -419,41 +457,20 @@ export class CollaborativeEditing {
   }
 
   /**
-   * On Resize Event
-   * @param event Event
-   */
-  onResize(): void {
-    this.cursors.forEach(({ range, node }, key) => {
-      const element: HTMLDivElement = this.editor.getDoc().querySelector(`#cursor-${key}`);
-      const bounding = range.getBoundingClientRect();
-      if (bounding.top === 0) {
-        element.style.top = node.offsetTop + 'px';
-        element.style.left = '1em';
-      } else {
-        element.style.top = this.editor.getDoc().children[0].scrollTop + bounding.top + 'px';
-        element.style.left = bounding.left + 'px';
-      }
-    });
-
-    this.selections.forEach(({ range, user }, key: number) => {
-      this.deleteUserInteractions(user);
-      this.moveSelection(Array.from(range.getClientRects()), user);
-    });
-  }
-
-  /**
    * Basic hash function
    * @param username User name
    */
   private hash(username: string): number {
     let hash = 0;
-    if (username.length == 0) {
+    if (username.length === 0) {
       return hash;
     }
-    for (var i = 0; i < username.length; i++) {
-      var char = username.charCodeAt(i);
+    for (let i = 0; i < username.length; i++) {
+      const char = username.charCodeAt(i);
+      /* tslint:disable:no-bitwise */
       hash = ((hash << 5) - hash) + char;
       hash = hash & hash;
+      /* tslint:enable:no-bitwise */
     }
     return hash;
   }
@@ -461,20 +478,12 @@ export class CollaborativeEditing {
   /**
    * Generates random color when user enters the application
    */
-  getRandomColor() {
+  private getRandomColor() {
     const letters = '0123456789ABCDEF';
     let color = '#';
     for (let i = 0; i < 6; i++) {
       color += letters[Math.floor(Math.random() * 16)];
     }
     return color;
-  }
-
-  /**
-   * Text editor content change event
-   * @param event Default TinyMCE Event
-   */
-  updateContent(event: Event) {
-    this.ioClient.emit('set_content', this.editor.getContent());
   }
 }

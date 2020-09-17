@@ -3,7 +3,7 @@ import { CollaborativeEditing } from './core/collaborative';
 import { User } from './interfaces/user.interfaces';
 
 declare const tinymce: any;
-let collaborativeMap: Map<string, CollaborativeEditing> = new Map();
+const collaborativeMap: Map<string, CollaborativeEditing> = new Map();
 
 tinymce.create('tinymce.plugins.Budwriter', {
   Budwriter: (editor: Editor, url: string) => {
@@ -23,7 +23,7 @@ tinymce.create('tinymce.plugins.Budwriter', {
       edit.setUser(user);
       window.onresize = (event: Event) => {
         edit.onResize();
-      }
+      };
     });
 
     editor.on('click', (event: Event) => {
@@ -31,17 +31,21 @@ tinymce.create('tinymce.plugins.Budwriter', {
       collaborativeMap.get(editor.getParam('selector')).onListen(event, user);
     });
 
-    editor.on('keyup', (event: Event) => {
-      const user: User = JSON.parse(JSON.stringify(editor.getParam('budwriter')));
-      collaborativeMap.get(editor.getParam('selector')).updateContent(event);
-
-      collaborativeMap.get(editor.getParam('selector')).onListen(event, user);
-    });
-
     editor.on('NodeChange', (event: Event) => {
       const colab = collaborativeMap.get(editor.getParam('selector'));
+      const user: User = JSON.parse(JSON.stringify(editor.getParam('budwriter')));
       if (colab) {
-      colab.updateContent(event);
+        colab.updateContent(event);
+        colab.onListen(event, user);
+      }
+    });
+
+    editor.on('input', (event: Event) => {
+      const colab = collaborativeMap.get(editor.getParam('selector'));
+      const user: User = JSON.parse(JSON.stringify(editor.getParam('budwriter')));
+      if (colab) {
+        colab.updateContent(event);
+        colab.onListen(event, user);
       }
     });
   }

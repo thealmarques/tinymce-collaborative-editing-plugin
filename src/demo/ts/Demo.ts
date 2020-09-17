@@ -14,7 +14,7 @@ tinymce.init({
     socketUrl: 'ws://budwriter-server.herokuapp.com'
   },
   toolbar: 'budwriter',
-  height : "600",
+  height : '600',
   branding: false,
 });
 
@@ -27,6 +27,6 @@ tinymce.init({
     socketUrl: 'ws://budwriter-server.herokuapp.com'
   },
   toolbar: 'budwriter',
-  height : "600",
+  height : '600',
   branding: false,
 });
