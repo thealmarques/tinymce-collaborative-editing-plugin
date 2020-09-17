@@ -10483,7 +10483,8 @@ tinymce.init({
     budwriter: {
         name: 'Andre',
         photoUrl: 'https://www.biggalyoga.com/wp-content/uploads/2018/07/profilecircle-768x814.png',
-        key: 'free4all'
+        key: 'free4all',
+        socketUrl: 'ws://budwriter-server.herokuapp.com'
     },
     toolbar: 'budwriter',
     height: "600",
@@ -10494,7 +10495,8 @@ tinymce.init({
     plugins: 'code budwriter',
     budwriter: {
         name: 'James',
-        key: 'free4all'
+        key: 'free4all',
+        socketUrl: 'ws://budwriter-server.herokuapp.com'
     },
     toolbar: 'budwriter',
     height: "600",
@@ -10531,7 +10533,7 @@ tinymce.create('tinymce.plugins.Budwriter', {
             collaborativeMap.set(editor.getParam('selector'), edit);
             edit.setUser(user);
             window.onresize = function (event) {
-                edit.onResize(event);
+                edit.onResize();
             };
         });
         editor.on('click', function (event) {
@@ -10577,7 +10579,7 @@ var CollaborativeEditing = /** @class */ (function () {
         this.colors = new Map();
         this.myUser = user;
         this.io = __webpack_require__(/*! socket.io-client */ "./node_modules/socket.io-client/lib/index.js");
-        this.ioClient = this.io.connect("http://localhost:3000", {
+        this.ioClient = this.io.connect(user.socketUrl, {
             query: "name=" + user.name + "&photoUrl=" + user.photoUrl
         });
         this.ioClient.on('update_clients', function (array) {
@@ -10635,6 +10637,7 @@ var CollaborativeEditing = /** @class */ (function () {
         this.ioClient.on('update_content', function (content) {
             if (content !== _this.editor.getContent()) {
                 _this.editor.setContent(content);
+                _this.onResize();
             }
         });
     }
@@ -10912,7 +10915,7 @@ var CollaborativeEditing = /** @class */ (function () {
      * On Resize Event
      * @param event Event
      */
-    CollaborativeEditing.prototype.onResize = function (event) {
+    CollaborativeEditing.prototype.onResize = function () {
         var _this = this;
         this.cursors.forEach(function (_a, key) {
             var range = _a.range, node = _a.node;

@@ -40,7 +40,7 @@ export class CollaborativeEditing {
 
     this.io = require("socket.io-client");
 
-    this.ioClient = this.io.connect("http://localhost:3000", {
+    this.ioClient = this.io.connect(user.socketUrl, {
       query: `name=${user.name}&photoUrl=${user.photoUrl}`
     });
 
@@ -112,6 +112,7 @@ export class CollaborativeEditing {
     this.ioClient.on('update_content', (content: string) => {
       if (content !== this.editor.getContent()) {
         this.editor.setContent(content);
+        this.onResize();
       }
     });
   }
@@ -421,7 +422,7 @@ export class CollaborativeEditing {
    * On Resize Event
    * @param event Event
    */
-  onResize(event: Event): void {
+  onResize(): void {
     this.cursors.forEach(({ range, node }, key) => {
       const element: HTMLDivElement = this.editor.getDoc().querySelector(`#cursor-${key}`);
       const bounding = range.getBoundingClientRect();

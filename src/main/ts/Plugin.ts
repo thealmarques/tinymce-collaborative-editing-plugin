@@ -22,7 +22,7 @@ tinymce.create('tinymce.plugins.Budwriter', {
       collaborativeMap.set(editor.getParam('selector'), edit);
       edit.setUser(user);
       window.onresize = (event: Event) => {
-        edit.onResize(event);
+        edit.onResize();
       }
     });
 
