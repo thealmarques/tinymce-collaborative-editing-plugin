@@ -15,7 +15,7 @@ tinymce.create('tinymce.plugins.Budwriter', {
       userContainer.style.display = 'flex';
       userContainer.style.alignItems = 'center';
       userContainer.style.marginBottom = '10px';
-      textEditor.parentElement.insertBefore(userContainer, textEditor);
+      textEditor.insertAdjacentElement('beforebegin', userContainer);
 
       const user: User = JSON.parse(JSON.stringify(editor.getParam('budwriter')));
       const edit = new CollaborativeEditing(editor, user);
