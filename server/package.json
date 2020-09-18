@@ -1,0 +1,32 @@
+{
+  "name": "tinymce-collaborative-editing-server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "ts-node ./src/server.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thealmarques/tinymce-collaborative-editing-server.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/thealmarques/tinymce-collaborative-editing-server/issues"
+  },
+  "homepage": "https://github.com/thealmarques/tinymce-collaborative-editing-server#readme",
+  "devDependencies": {
+    "@types/express": "^4.17.8",
+    "@types/node": "^14.6.4",
+    "typescript": "^4.0.2"
+  },
+  "dependencies": {
+    "@types/socket.io": "^2.1.11",
+    "express": "^4.15.2",
+    "socket.io": "^2.3.0",
+    "ts-node": "^9.0.0"
+  }
+}
