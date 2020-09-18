@@ -11,7 +11,7 @@ tinymce.init({
     name: 'Andre',
     photoUrl: 'https://www.biggalyoga.com/wp-content/uploads/2018/07/profilecircle-768x814.png',
     key: 'free4all',
-    socketUrl: 'ws://budwriter-server.herokuapp.com'
+    socketUrl: 'localhost:3000'
   },
   toolbar: 'budwriter',
   height : '600',
@@ -24,7 +24,7 @@ tinymce.init({
   budwriter: {
     name: 'James',
     key: 'free4all',
-    socketUrl: 'ws://budwriter-server.herokuapp.com'
+    socketUrl: 'localhost:3000'
   },
   toolbar: 'budwriter',
   height : '600',
