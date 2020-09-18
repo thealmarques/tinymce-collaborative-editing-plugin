@@ -9,7 +9,6 @@ tinymce.create('tinymce.plugins.Budwriter', {
   Budwriter: (editor: Editor, url: string) => {
     editor.on('Load', () => {
       const textEditor: HTMLElement = document.querySelector(editor.getParam('selector'));
-
       const userContainer = document.createElement('div');
       userContainer.id = 'user-container';
       userContainer.style.display = 'flex';

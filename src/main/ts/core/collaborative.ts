@@ -1,5 +1,6 @@
 import { Editor } from 'tinymce';
 import { SocketCursor } from '../interfaces/cursor.interfaces';
+import { Disconnect } from '../interfaces/disconnect.interfaces';
 import { SocketSelection } from '../interfaces/selection.interfaces';
 import { User } from '../interfaces/user.interfaces';
 
@@ -14,6 +15,7 @@ export class CollaborativeEditing {
    */
   private io: SocketIOClientStatic;
   private ioClient: SocketIOClient.Socket;
+  private clients: Set<string>;
 
   /**
    * Real time
@@ -36,24 +38,29 @@ export class CollaborativeEditing {
     this.selections = new Map();
     this.colors = new Map();
     this.myUser = user;
+    this.clients = new Set();
 
     this.io = require('socket.io-client');
 
-    this.ioClient = this.io.connect(user.socketUrl, {
-      query: `name=${user.name}&photoUrl=${user.photoUrl}`
+    this.ioClient = this.io.connect(user.socketUrl);
+
+    this.ioClient.on('connect', () => {
+      this.ioClient.emit('connect_client', this.myUser);
     });
 
     this.ioClient.on('update_clients', (array: []) => {
       const map = new Map(array);
-      map.forEach((value: User, key: number) => {
-        if (user.name !== value.name) {
+      map.forEach((value: User, key: string) => {
+        if (user.name !== value.name && !this.clients.has(key)) {
           this.setUser(value);
+          this.clients.add(key);
         }
       });
     });
 
-    this.ioClient.on('delete_client', (disconnected: User) => {
-      this.removeUser(disconnected);
+    this.ioClient.on('delete_client', (disconnected: Disconnect) => {
+      this.removeUser(disconnected.user);
+      this.clients.delete(disconnected.key);
     });
 
     this.ioClient.on('update_cursor', (obj: string) => {

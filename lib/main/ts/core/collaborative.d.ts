@@ -10,6 +10,7 @@ export declare class CollaborativeEditing {
      */
     private io;
     private ioClient;
+    private clients;
     /**
      * Real time
      */

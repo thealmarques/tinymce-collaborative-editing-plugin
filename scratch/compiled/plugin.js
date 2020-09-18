@@ -9340,18 +9340,24 @@ module.exports = yeast;
         this.selections = new Map();
         this.colors = new Map();
         this.myUser = user;
+        this.clients = new Set();
         this.io = require('socket.io-client');
-        this.ioClient = this.io.connect(user.socketUrl, { query: 'name=' + user.name + '&photoUrl=' + user.photoUrl });
+        this.ioClient = this.io.connect(user.socketUrl);
+        this.ioClient.on('connect', function () {
+          _this.ioClient.emit('connect_client', _this.myUser);
+        });
         this.ioClient.on('update_clients', function (array) {
           var map = new Map(array);
           map.forEach(function (value, key) {
-            if (user.name !== value.name) {
+            if (user.name !== value.name && !_this.clients.has(key)) {
               _this.setUser(value);
+              _this.clients.add(key);
             }
           });
         });
         this.ioClient.on('delete_client', function (disconnected) {
-          _this.removeUser(disconnected);
+          _this.removeUser(disconnected.user);
+          _this.clients.delete(disconnected.key);
         });
         this.ioClient.on('update_cursor', function (obj) {
           var parsedObj = JSON.parse(obj);
