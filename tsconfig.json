@@ -9,7 +9,8 @@
     "noUnusedLocals": true,
     "sourceMap": true,
     "outDir": "lib",
-    "baseUrl": "."
+    "baseUrl": ".",
+    "allowSyntheticDefaultImports": true
   },
   "include": [
     "src/demo/ts",

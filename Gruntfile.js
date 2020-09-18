@@ -53,6 +53,13 @@ module.exports = function(grunt) {
       }
     },
 
+    browserify: {
+      build: {
+        src: scratchPluginPath,
+        dest: scratchPluginPath
+      }
+    },
+
     uglify: {
       plugin: {
         files: [
@@ -152,6 +159,8 @@ module.exports = function(grunt) {
 
   require('load-grunt-tasks')(grunt);
   grunt.loadNpmTasks('@ephox/swag');
+  grunt.loadNpmTasks('grunt-contrib-uglify-es');
+  grunt.loadNpmTasks('grunt-browserify');
 
   grunt.registerTask('version', 'Creates a version file', function () {
     grunt.file.write('dist/budwriter/version.txt', BUILD_VERSION);
@@ -162,6 +171,7 @@ module.exports = function(grunt) {
     'tslint',
     'shell',
     'rollup',
+    'browserify',
     'uglify',
     'concat',
     'copy',

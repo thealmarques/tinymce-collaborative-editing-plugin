@@ -1,1 +1,1 @@
-export {};
+declare let tinymce: any;
