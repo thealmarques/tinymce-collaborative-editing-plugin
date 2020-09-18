@@ -2,13 +2,10 @@
 
 [Example available on CodePen](https://codepen.io/thealmarques/full/YzqOrWV)
 
-# How to build a real-time collaborative plugin in TinyMCE
+## Medium
 
-Introduction
-
-Just like any other developer out there, I had a project idea that I wanted to build, and when I finally had the time to research technologies that I needed I came across an issue. I needed a stylish text editor that allowed me to have multiple users edit at the same time.
-
-After some time (actually, it was the first that appeared, but it’s comprehensible, it’s super cool) I found TinyMCE. This WYSIWYG editor had a lot of free plugins, but none of them was a collaborative plugin. I found one but it was a paid plugin (more than 10$ a month). In summary, I had a new project idea, create a free collaborative plugin for TinyMCE.
+Full article available here.
+[How to build a real-time collaborative plugin in TinyMCE](https://medium.com/@almarques/how-to-build-a-real-time-collaborative-plugin-in-tinymce-8e748e10a87a)
 
 ## Create a plugin
 
@@ -22,12 +19,6 @@ Following the great, but somehow confuse TinyMCE documentation, it’s very quic
     npm start
 
 I suggest using VSCode with Live Reload server to open the demo HTML file where you can access your plugin and its changes.
-
-## The Big Picture
-
-Now it comes the fun part, what it takes to create a collaborative plugin? So if you think about it, we obviously need a way of connecting multiple clients in your TinyMCE editor, and in each one of these clients we have to communicate with a server when where we’ll bind several events, the client opens the TinyMCE editor, the client clicks in the editor and changes cursor position, client selects text, and, the clients adds new input. Each one of these events will have to be spread across all connected clients in the server.
-
-Some of you, by reading this will think about Socket.io, and you are right, this was the approach that I’ve taken, although you could use other alternatives (**SignalR, SocketCluster**, **Firebase, etc.**).
 
 ## **TinyMCE Plugin — Client**
 
@@ -58,22 +49,6 @@ Having all these properties created, we can start to develop our logic, let’s 
 * Update selection — Changes selection of a client.
 
 * Delete client — Deletes user container’s when a client disconnects from the server.
-
-    /**
-    * Socket IO
-    */
-    io: SocketIOClientStatic;
-    ioClient: SocketIOClient.Socket;
-
-    this.ioClient = this.io.connect(user.socketUrl, {
-    query: `name=${user.name}&photoUrl=${user.photoUrl}`
-    });
-
-    this.ioClient.on('update_clients', (array: []) => {// logic});
-    this.ioClient.on('delete_client', (user: User) => {// logic});
-    this.ioClient.on('update_cursor', (obj: string) => {// logic});
-    this.ioClient.on('update_selection', (obj: string) => {// logic});
-    this.ioClient.on('update_content', (content: string) => {// logic});
 
 ![Events sent from the clients to the server](https://cdn-images-1.medium.com/max/2000/1*EOcgHALT1FIMiU_Zp4h0OA.png)*Events sent from the clients to the server*
 
@@ -109,8 +84,3 @@ Once the socket.io package is ready to go, we have to create the event listeners
 In each one of these event listeners we have to propagate the change to the other clients, so they can update their plugin status (as depicted in the following image).
 
 ![Events sent from the server to the clients](https://cdn-images-1.medium.com/max/2000/1*-OUE-sXj7PG_0K2X_QSJ2g.png)*Events sent from the server to the clients*
-
-## Repositories
-
-This implementation is available on GitHub.
-> [TinyMCE Plugin](https://github.com/thealmarques/tinymce-collaborative-editing-plugin)
